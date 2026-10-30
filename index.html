@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visor PDF – tutorial Cursor AI</title>
+  <style>
+    :root{
+      --c-ink:#1B1F26;      /* negro azulado muy oscuro */
+      --c-slate:#2E4159;    /* azul grisáceo oscuro */
+      --c-blue:#35648C;     /* azul medio */
+      --c-ice:#84A9BF;      /* azul gris claro */
+      --c-sky:#D5E7F2;      /* azul cielo muy claro */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--c-ink);
+      color:#EFF6FB;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue","Noto Sans",Arial,sans-serif;
+      line-height:1.45;
+    }
+
+    /* Top bar */
+    header{
+      position:sticky; top:0; z-index:10;
+      background:linear-gradient(180deg, var(--c-slate), #26364a);
+      border-bottom:1px solid rgba(255,255,255,.08);
+      padding:.8rem 1rem;
+      display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;
+    }
+    .brand{
+      display:flex; align-items:center; gap:.6rem; margin-right:auto;
+    }
+    .logo{
+      width:34px; height:34px; border-radius:10px;
+      background:linear-gradient(135deg, var(--c-blue), var(--c-ice));
+      box-shadow:0 4px 14px rgba(0,0,0,.25) inset;
+      display:grid; place-items:center; font-weight:700; color:#0b2436;
+    }
+    .title{font-size:1rem; font-weight:600; color:#E9F2F9}
+
+    /* Controls */
+    .controls{
+      display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+      background:rgba(213,231,242,.1);
+      border:1px solid rgba(132,169,191,.25);
+      padding:.5rem; border-radius:12px;
+    }
+    .group{
+      display:flex; align-items:center; gap:.4rem;
+      background:rgba(27,31,38,.5);
+      border:1px solid rgba(132,169,191,.25);
+      padding:.4rem .5rem; border-radius:10px;
+    }
+    button, input[type="number"]{
+      appearance:none; border:none; outline:none;
+      border-radius:10px; padding:.5rem .7rem;
+      background:var(--c-blue); color:#fff; font-weight:600;
+      cursor:pointer; transition:transform .05s ease, opacity .15s ease, background .2s ease;
+    }
+    button[disabled]{opacity:.45; cursor:not-allowed}
+    button:active{transform:translateY(1px)}
+    .btn-soft{background:rgba(53,100,140,.25); color:#E9F2F9}
+    .btn-accent{background:var(--c-blue)}
+    .btn-outline{
+      background:transparent; color:#E9F2F9;
+      border:1px solid rgba(132,169,191,.45)
+    }
+    input[type="number"]{
+      width:5.5rem; text-align:center; background:var(--c-slate);
+      border:1px solid rgba(132,169,191,.45);
+    }
+    .label{font-size:.85rem; opacity:.9}
+    .meta{font-variant-numeric:tabular-nums}
+    .slider{
+      accent-color: var(--c-blue);
+      width:140px;
+    }
+    .kbd{
+      font-size:.75rem; padding:.1rem .35rem; border-radius:6px;
+      background:#12202e; border:1px solid rgba(132,169,191,.35);
+      color:#D5E7F2;
+    }
+
+    /* Viewer area */
+    main{
+      padding:1rem; display:grid; place-items:center;
+    }
+    .card{
+      width:min(1200px, 100%); background:linear-gradient(180deg, #15202a, #0f1821);
+      border:1px solid rgba(132,169,191,.22);
+      border-radius:16px; padding:1rem;
+      box-shadow:0 12px 40px rgba(0,0,0,.35);
+    }
+    .canvas-wrap{
+      position:relative; background:var(--c-sky);
+      border:1px solid var(--c-ice);
+      border-radius:12px; padding:.75rem; overflow:auto;
+      display:grid; place-items:center; min-height:60vh;
+    }
+    canvas{max-width:100%; height:auto; display:block; border-radius:6px}
+    .overlay{
+      position:absolute; inset:0; display:grid; place-items:center;
+      pointer-events:none; border-radius:12px;
+    }
+    .loader{
+      display:inline-flex; align-items:center; gap:.6rem;
+      background:rgba(46,65,89,.85); color:#fff;
+      padding:.6rem .9rem; border-radius:10px;
+      border:1px solid rgba(132,169,191,.35);
+      box-shadow:0 4px 18px rgba(0,0,0,.3);
+      font-weight:600;
+    }
+    .dot{width:8px; height:8px; border-radius:50%; background:#D5E7F2; animation:b 1s infinite ease-in-out}
+    .dot:nth-child(2){animation-delay:.15s}
+    .dot:nth-child(3){animation-delay:.3s}
+    @keyframes b{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+    .error{
+      margin-top:.75rem; padding:.75rem; border-radius:10px;
+      background:#3b1e25; color:#ffdfe7; border:1px solid #7a3a49;
+      display:none;
+    }
+
+    /* Footer tips */
+    footer{
+      color:#b7c9d6; opacity:.9; font-size:.9rem; text-align:center;
+      padding:1rem; border-top:1px solid rgba(132,169,191,.2)
+    }
+
+    /* Responsive tweaks */
+    @media (max-width:640px){
+      .slider{width:110px}
+      header{gap:.5rem}
+      .title{font-size:.95rem}
+    }
+  </style>
+</head>
+<body>
+  <header aria-label="Barra superior y controles del visor">
+    <div class="brand" aria-label="Identidad">
+      <div class="logo" aria-hidden="true">PDF</div>
+      <div class="title">Visor de <strong>tutorial_cursor_ai.pdf</strong></div>
+    </div>
+
+    <div class="controls" role="group" aria-label="Controles del documento">
+      <div class="group" role="group" aria-label="Navegación por páginas">
+        <button id="prev" class="btn-soft" aria-label="Página anterior">⟵ Anterior</button>
+        <span class="label">Página</span>
+        <input id="page_num" type="number" min="1" value="1" aria-label="Ir a página (ingrese número)" />
+        <span class="meta" id="page_count">/ —</span>
+        <button id="next" class="btn-soft" aria-label="Página siguiente">Siguiente ⟶</button>
+      </div>
+
+      <div class="group" role="group" aria-label="Zoom">
+        <button id="zoom_out" class="btn-outline" aria-label="Reducir zoom">−</button>
+        <input id="zoom_slider" class="slider" type="range" min="50" max="200" step="5" value="110" aria-label="Control de zoom (50% a 200%)" />
+        <button id="zoom_in" class="btn-outline" aria-label="Aumentar zoom">+</button>
+        <button id="fit_width" class="btn-accent" aria-pressed="false" aria-label="Ajustar a ancho">Ajustar a ancho</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="card" aria-label="Visor PDF">
+      <div class="canvas-wrap" id="canvas_wrap">
+        <canvas id="the_canvas" aria-label="Lienzo de renderizado del PDF"></canvas>
+        <div class="overlay" id="loading_overlay" aria-live="polite" aria-atomic="true" style="display:none">
+          <div class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span> Renderizando…</div>
+        </div>
+      </div>
+      <div id="error_box" class="error" role="alert"></div>
+    </div>
+  </main>
+
+  <footer>
+    Atajos: <span class="kbd">←</span>/<span class="kbd">→</span> navegar ·
+    <span class="kbd">+</span>/<span class="kbd">−</span> zoom ·
+    <span class="kbd">F</span> ajustar a ancho
+  </footer>
+
+  <!-- PDF.js desde CDNJS SIN integrity (para evitar bloqueo SRI) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" referrerpolicy="no-referrer"></script>
+  <script>
+    // PDF.js en CDN expone la librería en window['pdfjs-dist/build/pdf']
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+
+    // Configurar worker (misma versión)
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+    // Elementos UI
+    const $ = (sel) => document.querySelector(sel);
+    const canvas = $("#the_canvas");
+    const ctx = canvas.getContext("2d");
+    const pageNumInput = $("#page_num");
+    const pageCountLabel = $("#page_count");
+    const prevBtn = $("#prev");
+    const nextBtn = $("#next");
+    const zoomInBtn = $("#zoom_in");
+    const zoomOutBtn = $("#zoom_out");
+    const zoomSlider = $("#zoom_slider");
+    const fitWidthBtn = $("#fit_width");
+    const loadingOverlay = $("#loading_overlay");
+    const errorBox = $("#error_box");
+    const canvasWrap = $("#canvas_wrap");
+
+    // Estado del visor
+    let pdfDoc = null;
+    let currentPage = 1;
+    let scale = 1.1;           // 110% por defecto (coincide con slider)
+    let isRendering = false;
+    let pendingPage = null;
+    let fitToWidth = false;    // modo "Ajustar a ancho"
+    let lastViewport = null;
+
+    const showLoading = (v) => loadingOverlay.style.display = v ? "grid" : "none";
+    const showError = (msg) => {
+      errorBox.textContent = msg || "";
+      errorBox.style.display = msg ? "block" : "none";
+    };
+
+    async function loadPdf(url = "tutorial_cursor_ai.pdf"){
+      try{
+        showError("");
+        pdfDoc = await pdfjsLib.getDocument(url).promise;
+        pageCountLabel.textContent = "/ " + pdfDoc.numPages;
+        currentPage = 1;
+        pageNumInput.value = 1;
+        await renderPage(currentPage, /*fresh=*/true);
+        updateNavButtons();
+      }catch(err){
+        console.error(err);
+        showError("No fue posible cargar 'tutorial_cursor_ai.pdf'. Verifica que el archivo exista en la misma carpeta y que el navegador permita leerlo. Si abres con file:// usa un servidor local (p. ej. python -m http.server).");
+      }
+    }
+
+    function updateNavButtons(){
+      prevBtn.disabled = (currentPage <= 1);
+      nextBtn.disabled = (pdfDoc ? currentPage >= pdfDoc.numPages : true);
+    }
+
+    // Calcula scale para ajustar a ancho del contenedor manteniendo nitidez
+    function computeFitWidthScale(viewport){
+      const wrapWidthCSS = canvasWrap.clientWidth - 24; // padding
+      const cssScale = Math.max(0.1, wrapWidthCSS / viewport.width);
+      return cssScale;
+    }
+
+    async function renderPage(num, fresh=false){
+      if(!pdfDoc) return;
+      isRendering = true;
+      showLoading(true);
+
+      try{
+        const page = await pdfDoc.getPage(num);
+        if(!lastViewport || fresh){
+          lastViewport = page.getViewport({ scale: 1 });
+        }
+        let drawScale = fitToWidth ? computeFitWidthScale(lastViewport) : scale;
+        const viewport = lastViewport.clone({ scale: drawScale });
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = Math.floor(viewport.width) + "px";
+        canvas.style.height = Math.floor(viewport.height) + "px";
+        const transform = [dpr, 0, 0, dpr, 0, 0];
+
+        await page.render({ canvasContext: ctx, viewport, transform }).promise;
+
+        currentPage = num;
+        pageNumInput.value = num;
+        updateNavButtons();
+      }catch(err){
+        console.error(err);
+        showError("Ocurrió un error al renderizar la página.");
+      }finally{
+        isRendering = false;
+        showLoading(false);
+        if(pendingPage !== null){
+          const toGo = pendingPage;
+          pendingPage = null;
+          renderPage(toGo);
+        }
+      }
+    }
+
+    function queueRenderPage(num){
+      if(isRendering){
+        pendingPage = num;
+      }else{
+        renderPage(num);
+      }
+    }
+
+    // Navegación
+    prevBtn.addEventListener("click", ()=>{
+      if(currentPage <= 1) return;
+      queueRenderPage(currentPage - 1);
+    });
+    nextBtn.addEventListener("click", ()=>{
+      if(!pdfDoc || currentPage >= pdfDoc.numPages) return;
+      queueRenderPage(currentPage + 1);
+    });
+
+    // Ir a página
+    pageNumInput.addEventListener("change", ()=>{
+      if(!pdfDoc) return;
+      let n = parseInt(pageNumInput.value, 10);
+      if(Number.isNaN(n)) { pageNumInput.value = currentPage; return; }
+      n = Math.min(Math.max(n, 1), pdfDoc.numPages);
+      queueRenderPage(n);
+    });
+
+    // Zoom
+    function setScaleFromSlider(){
+      scale = parseInt(zoomSlider.value, 10) / 100;
+      fitToWidth = false;
+      fitWidthBtn.setAttribute("aria-pressed", "false");
+      queueRenderPage(currentPage);
+    }
+    zoomSlider.addEventListener("input", setScaleFromSlider);
+    zoomInBtn.addEventListener("click", ()=>{
+      const v = Math.min(200, parseInt(zoomSlider.value,10) + 10);
+      zoomSlider.value = v; setScaleFromSlider();
+    });
+    zoomOutBtn.addEventListener("click", ()=>{
+      const v = Math.max(50, parseInt(zoomSlider.value,10) - 10);
+      zoomSlider.value = v; setScaleFromSlider();
+    });
+
+    // Ajustar a ancho
+    function toggleFitWidth(forceOn){
+      const on = (typeof forceOn === "boolean") ? forceOn : !fitToWidth;
+      fitToWidth = on;
+      fitWidthBtn.setAttribute("aria-pressed", String(on));
+      if(on){ queueRenderPage(currentPage); }
+    }
+    fitWidthBtn.addEventListener("click", ()=> toggleFitWidth());
+
+    // Redibujar al cambiar tamaño cuando está en "Ajustar a ancho"
+    let resizeTimer = null;
+    window.addEventListener("resize", ()=>{
+      if(!fitToWidth || !pdfDoc) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(()=> queueRenderPage(currentPage), 120);
+    });
+
+    // Atajos de teclado
+    window.addEventListener("keydown", (e)=>{
+      if(!pdfDoc) return;
+      if(e.key === "ArrowLeft"){ e.preventDefault(); prevBtn.click(); }
+      else if(e.key === "ArrowRight"){ e.preventDefault(); nextBtn.click(); }
+      else if(e.key === "+"){ e.preventDefault(); zoomInBtn.click(); }
+      else if(e.key === "-"){ e.preventDefault(); zoomOutBtn.click(); }
+      else if(e.key.toLowerCase() === "f"){ e.preventDefault(); toggleFitWidth(); }
+    });
+
+    // Iniciar
+    loadPdf(); // Carga tutorial.pdf de la misma carpeta
+  </script>
+</body>
+</html>
